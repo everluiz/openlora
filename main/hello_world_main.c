@@ -32,6 +32,7 @@
 
 #include "driver/uart.h"
 #include "string.h"
+#include "app.h"
 
 #define TRANSMITTER 1
 #define RECEIVER    2
@@ -293,6 +294,7 @@ void lora_receive_task_3(void *param) {
 void app_main()
 {
     printf("Hello world!\n");
+    
 
     /* Print chip information */
     esp_chip_info_t chip_info;
@@ -335,7 +337,7 @@ void app_main()
    // Tarefa cartão SD
    //xTaskCreate(&task_sdcard, "task_sdcard", 10*1024, NULL, 3, NULL);
    //xTaskCreate(&task_tasklist, "Task List", 4096, NULL,2,NULL);
-
+    ftp_app_main();
 }
 
 

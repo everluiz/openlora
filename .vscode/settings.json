@@ -3,6 +3,7 @@
     "files.associations": {
         "compare": "c",
         "cstdlib": "c",
-        "u8g2_esp32_hal.h": "c"
+        "u8g2_esp32_hal.h": "c",
+        "functional": "c"
     }
 }
