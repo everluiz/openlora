@@ -61,7 +61,6 @@
 //#include "freertos/semphr.h"
 
 #include "ftp.h"
-#include "openlora.h"
 
 extern int FTP_TASK_FINISH_BIT;
 extern EventGroupHandle_t xEventTask;
@@ -299,10 +298,12 @@ static ftp_result_t ftp_list_dir(char *list, uint32_t maxlistsize, uint32_t *lis
 
 //------------------------------------
 static void ftp_close_cmd_data(void) {
-	closesocket(ftp_data.c_sd);
-	closesocket(ftp_data.d_sd);
-	ftp_data.c_sd  = -1;
-	ftp_data.d_sd  = -1;
+	//closesocket(ftp_data.c_sd);
+	//closesocket(ftp_data.d_sd);
+	ol_transp_close(&ftp_data.c_sd);
+	ol_transp_close(&ftp_data.d_sd);
+	//ftp_data.c_sd  = -1;
+	//ftp_data.d_sd  = -1;
 	ftp_close_filesystem_on_error ();
 }
 
@@ -310,10 +311,12 @@ static void ftp_close_cmd_data(void) {
 static void _ftp_reset(void) {
 	// close all connections and start all over again
 	ESP_LOGW(FTP_TAG, "FTP RESET");
-	closesocket(ftp_data.lc_sd);
-	closesocket(ftp_data.ld_sd);
-	ftp_data.lc_sd = -1;
-	ftp_data.ld_sd = -1;
+	//closesocket(ftp_data.lc_sd);
+	//closesocket(ftp_data.ld_sd);
+	//ol_transp_close(&ftp_data.lc_sd);
+	//ol_transp_close(&ftp_data.ld_sd);
+	//ftp_data.lc_sd = -1;
+	//ftp_data.ld_sd = -1;
 	ftp_close_cmd_data();
 
 	ftp_data.e_open = E_FTP_NOTHING_OPEN;
@@ -322,20 +325,27 @@ static void _ftp_reset(void) {
 }
 
 //-------------------------------------------------------------------------------------
-static bool ftp_create_listening_socket (transport_layer_t *server, uint8_t src_port, uint8_t dst_port) {
+static bool ftp_create_listening_socket (uint8_t c_src_port, uint8_t c_dst_port, uint8_t d_src_port, uint8_t d_dst_port) {
 
-	// open a openlora server for ftp data listen
-	static const char *TAG = "ftp 0l_open";
-    server->protocol = TRANSP_STREAM;
-    server->src_port = src_port;
-	server->dst_port = dst_port;
-    int ret = ol_transp_open(server);
-    if (ret == pdFAIL) {
-        ESP_LOGI(TAG, "It was not possible to listen the %d port", server->src_port );
-    }else{
-		return true;
-	}
-	return false;
+	// open a openlora server for ftp comand listen
+	static const char *TAG = "ftp ol_open";
+    ftp_data.c_sd.protocol = TRANSP_STREAM;
+    ftp_data.c_sd.src_port = c_src_port;
+	ftp_data.c_sd.dst_port = c_dst_port;
+    int ret = ol_transp_open(&ftp_data.c_sd);
+
+	// open a openlora server for ftp data
+    ftp_data.d_sd.protocol = TRANSP_STREAM;
+    ftp_data.d_sd.src_port = d_src_port;
+	ftp_data.d_sd.dst_port = d_dst_port;
+    int ret2 = ol_transp_open(&ftp_data.d_sd);
+    if (ret == pdFAIL && ret2 == pdFAIL) {
+		ESP_LOGI(TAG, "It was not possible to listen the %d port", ftp_data.c_sd.src_port);
+        ESP_LOGI(TAG, "It was not possible to listen the %d port", ftp_data.d_sd.src_port);
+		return false;
+    }
+	return  true;
+	
 }
 //-------------------------------------------------------------------------------------
 /*static bool ftp_create_listening_socket (int32_t *sd, uint32_t port, uint8_t backlog) {
@@ -377,12 +387,12 @@ static bool ftp_create_listening_socket (transport_layer_t *server, uint8_t src_
 }*/
 
 //--------------------------------------------------------------------------------------------
-static ftp_result_t ftp_wait_for_connection (int32_t l_sd, int32_t *n_sd, uint32_t *ip_addr) {
-	struct sockaddr_in	sClientAddress;
+static ftp_result_t ftp_wait_for_connection (int32_t l_sd, int32_t n_sd, uint32_t *ip_addr) {
+/*	struct sockaddr_in	sClientAddress;
 	socklen_t  in_addrSize;
 
 	// accepts a connection from a TCP client, if there is any, otherwise returns EAGAIN
-	*n_sd = accept(l_sd, (struct sockaddr *)&sClientAddress, (socklen_t *)&in_addrSize);
+	*n_sd = accept(l_sd, (struct sockaddr *)&sClientAddress, (socklen_t *)&in_addrSize); // socket obj, address, size
 	int32_t _sd = *n_sd;
 	if (_sd < 0) {
 		if (errno == EAGAIN) {
@@ -405,11 +415,12 @@ static ftp_result_t ftp_wait_for_connection (int32_t l_sd, int32_t *n_sd, uint32
 	}
 
 	// enable non-blocking mode if not data channel connection
-	uint32_t option = fcntl(_sd, F_GETFL, 0);
+	uint32_t option = fcntl(_sd, F_GETFL, 0); // copy the file descriptor
 	if (l_sd != ftp_data.ld_sd) option |= O_NONBLOCK;
 	fcntl(_sd, F_SETFL, option);
 
 	// client connected, so go on
+	*/
 	return E_FTP_RESULT_OK;
 }
 
@@ -424,7 +435,7 @@ static void ftp_send_reply (uint32_t status, char *message) {
 	strcat ((char *)ftp_cmd_buffer, "\r\n");
 
 	int32_t timeout = 200;
-	ftp_result_t result;
+	//ftp_result_t result;
 	//uint32_t size = strlen((char *)ftp_cmd_buffer);
 	size_t size = strlen((char *)ftp_cmd_buffer);
 
@@ -432,20 +443,21 @@ static void ftp_send_reply (uint32_t status, char *message) {
 	vTaskDelay(1);
 
 	while (1) {
-		result = send(ftp_data.c_sd, ftp_cmd_buffer, size, 0);
-		if (result == size) {
+		//result = send(ftp_data.c_sd, ftp_cmd_buffer, size, 0);
+		int sent = ol_transp_send(&ftp_data.c_sd,(uint8_t*) ftp_cmd_buffer, size, portMAX_DELAY);//todo: delay
+		if (sent == size) {
 			if (status == 221) {
-				closesocket(ftp_data.d_sd);
+				/*closesocket(ftp_data.d_sd);
 				ftp_data.d_sd = -1;
 				closesocket(ftp_data.ld_sd);
 				ftp_data.ld_sd = -1;
-				closesocket(ftp_data.c_sd);
+				closesocket(ftp_data.c_sd);*/
 				ftp_data.substate = E_FTP_STE_SUB_DISCONNECTED;
 				ftp_close_filesystem_on_error();
 			}
 			else if (status == 426 || status == 451 || status == 550) {
-				closesocket(ftp_data.d_sd);
-				ftp_data.d_sd = -1;
+				//closesocket(ftp_data.d_sd);//todo: verificar
+				//ftp_data.d_sd = -1;
 				ftp_close_filesystem_on_error();
 			}
 			vTaskDelay(1);
@@ -475,7 +487,8 @@ static void ftp_send_list(uint32_t datasize)
 	vTaskDelay(1);
 
 	while (1) {
-		result = send(ftp_data.d_sd, ftp_data.dBuffer, datasize, 0);
+		//result = send(ftp_data.d_sd, ftp_data.dBuffer, datasize, 0); //todo: replace socket send() for ol_transp_send()
+		result = ol_transp_send(&ftp_data.d_sd, ftp_data.dBuffer, datasize, 0);//todo: delay
 		if (result == datasize) {
 			vTaskDelay(1);
 			ESP_LOGI(FTP_TAG, "Send OK");
@@ -504,7 +517,8 @@ static void ftp_send_file_data(uint32_t datasize)
 	vTaskDelay(1);
 
 	while (1) {
-		result = send(ftp_data.d_sd, ftp_data.dBuffer, datasize, 0);
+		//result = send(ftp_data.d_sd, ftp_data.dBuffer, datasize, 0); // todo: change socket send() to openlora ol_transp_send()
+		result = ol_transp_send(&ftp_data.d_sd, ftp_data.dBuffer, datasize, 0);//todo: delay
 		if (result == datasize) {
 			vTaskDelay(1);
 			ESP_LOGI(FTP_TAG, "Send OK");
@@ -524,11 +538,12 @@ static void ftp_send_file_data(uint32_t datasize)
 }
 
 //------------------------------------------------------------------------------------------------
-static ftp_result_t ftp_recv_non_blocking (int32_t sd, void *buff, int32_t Maxlen, int32_t *rxLen)
+static ftp_result_t ftp_recv_non_blocking (transport_layer_t sd, void *buff, int32_t Maxlen, int32_t *rxLen)
 {
-	if (sd < 0) return E_FTP_RESULT_FAILED;
+	if (sd.transp_wakeup == NULL) return E_FTP_RESULT_FAILED;
 
-	*rxLen = recv(sd, buff, Maxlen, 0);
+	//*rxLen = recv(sd, buff, Maxlen, 0); // todo: replace socket recv() for openlora ol_transp_recv()
+	*rxLen = ol_transp_recv(&sd, (uint8_t *)buff, 0);
 	if (*rxLen > 0) return E_FTP_RESULT_OK;
 	else if (errno != EAGAIN) return E_FTP_RESULT_FAILED;
 
@@ -862,8 +877,9 @@ static void ftp_process_cmd (void) {
 			break;
 		case E_FTP_CMD_PASV:
 			{
+				ftp_send_reply(504, "not-supported");
 				// some servers (e.g. google chrome) send PASV several times very quickly
-				closesocket(ftp_data.d_sd);
+				/*closesocket(ftp_data.d_sd);
 				ftp_data.d_sd = -1;
 				ftp_data.substate = E_FTP_STE_SUB_DISCONNECTED;
 				bool socketcreated = true;
@@ -882,7 +898,7 @@ static void ftp_process_cmd (void) {
 				else {
 					ESP_LOGW(FTP_TAG, "Error creating data socket");
 					ftp_send_reply(425, NULL);
-				}
+				}*/
 			}
 			break;
 		case E_FTP_CMD_LIST:
@@ -1119,11 +1135,10 @@ bool ftp_init(void) {
 	}
 
 	//SOCKETFIFO_Init((void *)ftp_fifoelements, FTP_SOCKETFIFO_ELEMENTS_MAX);
-
-	ftp_data.c_sd  = -1;
-	ftp_data.d_sd  = -1;
-	ftp_data.lc_sd = -1;
-	ftp_data.ld_sd = -1;
+	//ftp_data.c_sd  = -1;
+	//ftp_data.d_sd  = -1;
+	//ftp_data.lc_sd = -1;
+	//ftp_data.ld_sd = -1;
 	ftp_data.e_open = E_FTP_NOTHING_OPEN;
 	ftp_data.state = E_FTP_STE_DISABLED;
 	ftp_data.substate = E_FTP_STE_SUB_DISCONNECTED;
@@ -1144,17 +1159,28 @@ int ftp_run (uint32_t elapsed)
 
 	switch (ftp_data.state) {
 		case E_FTP_STE_DISABLED:
-			ftp_wait_for_enabled();
+			ftp_wait_for_enabled(); // todo: fcn lora ok
 			break;
 		case E_FTP_STE_START:
-			if (ftp_create_listening_socket(&ftp_data.lc_sd, FTP_CMD_PORT, FTP_CMD_CLIENTS_MAX - 1)) {
-				ftp_data.state = E_FTP_STE_READY;
+			// static bool ftp_create_listening_socket (transport_layer_t *server, uint8_t src_port, uint8_t dst_port) 
+			if (ftp_create_listening_socket(FTP_CMD_PORT, FTP_CMD_CLIENTS_MAX - 1,
+			FTP_ACTIVE_DATA_PORT, FTP_DATA_CLIENTS_MAX - 1)) {// todo: verify src_port and dst_port
+				ftp_data.txRetries = 0;
+				ftp_data.logginRetries = 0;
+				ftp_data.ctimeout = 0;
+				ftp_data.loggin.uservalid = false;
+				ftp_data.loggin.passvalid = false;
+				strcpy (ftp_path, "/");
+				ESP_LOGI(FTP_TAG, "Connected.");
+				//ftp_send_reply (220, "Micropython FTP Server");
+				ftp_send_reply (220, "ESP32 FTP Server");
 				
+				ftp_data.state = E_FTP_STE_READY;				
 			}
 			break;
 		case E_FTP_STE_READY:
-			if (ftp_data.c_sd < 0 && ftp_data.substate == E_FTP_STE_SUB_DISCONNECTED) {
-				if (E_FTP_RESULT_OK == ftp_wait_for_connection(ftp_data.lc_sd, &ftp_data.c_sd, &ftp_data.ip_addr)) {
+			/*if (ftp_data.c_sd < 0 && ftp_data.substate == E_FTP_STE_SUB_DISCONNECTED) {
+				//if (E_FTP_RESULT_OK == ftp_wait_for_connection(ftp_data.lc_sd, &ftp_data.c_sd, &ftp_data.ip_addr)) { //  wait for socket connection
 					ftp_data.txRetries = 0;
 					ftp_data.logginRetries = 0;
 					ftp_data.ctimeout = 0;
@@ -1165,9 +1191,9 @@ int ftp_run (uint32_t elapsed)
 					//ftp_send_reply (220, "Micropython FTP Server");
 					ftp_send_reply (220, "ESP32 FTP Server");
 					break;
-				}
-			}
-			if (ftp_data.c_sd > 0 && ftp_data.substate != E_FTP_STE_SUB_LISTEN_FOR_DATA) {
+				//}
+			}*/
+			if (/*ftp_data.c_sd > 0 &&*/ ftp_data.substate != E_FTP_STE_SUB_LISTEN_FOR_DATA) {
 				ftp_process_cmd();
 				if (ftp_data.state != E_FTP_STE_READY) {
 					break;
@@ -1175,10 +1201,10 @@ int ftp_run (uint32_t elapsed)
 			}
 			break;
 		case E_FTP_STE_END_TRANSFER:
-			if (ftp_data.d_sd >= 0) {
+			/*if (ftp_data.d_sd >= 0) {
 				closesocket(ftp_data.d_sd);
 				ftp_data.d_sd = -1;
-			}
+			}*/
 			break;
 		case E_FTP_STE_CONTINUE_LISTING:
 			// go on with listing
@@ -1266,7 +1292,7 @@ int ftp_run (uint32_t elapsed)
 	case E_FTP_STE_SUB_DISCONNECTED:
 		break;
 	case E_FTP_STE_SUB_LISTEN_FOR_DATA:
-		if (E_FTP_RESULT_OK == ftp_wait_for_connection(ftp_data.ld_sd, &ftp_data.d_sd, NULL)) {
+		if (E_FTP_RESULT_OK == ftp_wait_for_connection(0, 0, NULL)) {
 			ftp_data.dtimeout = 0;
 			ftp_data.substate = E_FTP_STE_SUB_DATA_CONNECTED;
 			ESP_LOGI(FTP_TAG, "Data socket connected");
@@ -1275,18 +1301,18 @@ int ftp_run (uint32_t elapsed)
 			ESP_LOGW(FTP_TAG, "Waiting for data connection timeout (%"PRIi32")", ftp_data.dtimeout);
 			ftp_data.dtimeout = 0;
 			// close the listening socket
-			closesocket(ftp_data.ld_sd);
-			ftp_data.ld_sd = -1;
+			//closesocket(ftp_data.ld_sd);
+			//ftp_data.ld_sd = -1;
 			ftp_data.substate = E_FTP_STE_SUB_DISCONNECTED;
 		}
 		break;
 	case E_FTP_STE_SUB_DATA_CONNECTED:
 		if (ftp_data.state == E_FTP_STE_READY && (ftp_data.dtimeout > FTP_DATA_TIMEOUT_MS)) {
 			// close the listening and the data socket
-			closesocket(ftp_data.ld_sd);
-			closesocket(ftp_data.d_sd);
-			ftp_data.ld_sd = -1;
-			ftp_data.d_sd = -1;
+			//closesocket(ftp_data.ld_sd);
+			//closesocket(ftp_data.d_sd);
+			//ftp_data.ld_sd = -1;
+			//ftp_data.d_sd = -1;
 			ftp_close_filesystem_on_error ();
 			ftp_data.substate = E_FTP_STE_SUB_DISCONNECTED;
 			ESP_LOGW(FTP_TAG, "Data connection timeout");
@@ -1297,7 +1323,7 @@ int ftp_run (uint32_t elapsed)
 	}
 
 	// check the state of the data sockets
-	if (ftp_data.d_sd < 0 && (ftp_data.state > E_FTP_STE_READY)) {
+	if (ftp_data.d_sd.transp_wakeup == NULL && (ftp_data.state > E_FTP_STE_READY)) {
 		ftp_data.substate = E_FTP_STE_SUB_DISCONNECTED;
 		ftp_data.state = E_FTP_STE_READY;
 		ESP_LOGI(FTP_TAG, "Data socket disconnected");
@@ -1345,7 +1371,7 @@ bool ftp_reset (void) {
 //------------------
 int ftp_getstate() {
 	int fstate = ftp_data.state | (ftp_data.substate << 8);
-	if ((ftp_data.state == E_FTP_STE_READY) && (ftp_data.c_sd > 0)) fstate = E_FTP_STE_CONNECTED;
+	if ((ftp_data.state == E_FTP_STE_READY) /*&& (ftp_data.c_sd > 0)*/) fstate = E_FTP_STE_CONNECTED;
 	return fstate;
 }
 

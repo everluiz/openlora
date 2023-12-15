@@ -4,6 +4,13 @@
         "compare": "c",
         "cstdlib": "c",
         "u8g2_esp32_hal.h": "c",
-        "functional": "c"
+        "functional": "c",
+        "*.tcc": "c",
+        "bitset": "c",
+        "array": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "regex": "c",
+        "utility": "c"
     }
 }

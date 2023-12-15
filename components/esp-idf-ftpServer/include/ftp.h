@@ -36,6 +36,7 @@
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "openlora.h"
 
 /******************************************************************************
  DEFINE PRIVATE CONSTANTS
@@ -103,10 +104,10 @@ typedef struct {
         DIR         *dp; // directory pointer
         FILE        *fp; // file pointer
     };
-    int32_t         lc_sd;
-    int32_t         ld_sd;
-    int32_t         c_sd;
-    int32_t         d_sd;
+    //transport_layer_t   lc_sd;  //  listening cmd port
+    //transport_layer_t   ld_sd;  //  listening data port
+    transport_layer_t   c_sd;   //  cmd port
+    transport_layer_t   d_sd;   //  data port
     int32_t         dtimeout;
     uint32_t        ip_addr;
     uint8_t         state;
@@ -128,31 +129,32 @@ typedef struct {
 
 typedef enum {
     E_FTP_CMD_NOT_SUPPORTED = -1,
-    E_FTP_CMD_FEAT = 0,
-    E_FTP_CMD_SYST,
-    E_FTP_CMD_CDUP,
-    E_FTP_CMD_CWD,
-    E_FTP_CMD_PWD,
-    E_FTP_CMD_XPWD,
-    E_FTP_CMD_SIZE,
-    E_FTP_CMD_MDTM,
-    E_FTP_CMD_TYPE,
-    E_FTP_CMD_USER,
-    E_FTP_CMD_PASS,
-    E_FTP_CMD_PASV,
-    E_FTP_CMD_LIST,
-    E_FTP_CMD_RETR,
-    E_FTP_CMD_STOR,
-    E_FTP_CMD_DELE,
-    E_FTP_CMD_RMD,
-    E_FTP_CMD_MKD,
-    E_FTP_CMD_RNFR,
-    E_FTP_CMD_RNTO,
-    E_FTP_CMD_NOOP,
-    E_FTP_CMD_QUIT,
-    E_FTP_CMD_APPE,
-    E_FTP_CMD_NLST,
-    E_FTP_CMD_AUTH,
+    E_FTP_CMD_FEAT = 0,         //	Get the feature list implemented by the server.
+    E_FTP_CMD_SYST,             //  Return system type.
+    E_FTP_CMD_CDUP,             //  Change to Parent Directory.
+    E_FTP_CMD_CWD,              //  Change working directory.
+    E_FTP_CMD_PWD,              //  Print working directory. Returns the current directory of the host.
+    E_FTP_CMD_XPWD,             //  Print the current working directory.
+    E_FTP_CMD_SIZE,             //  Return the size of a file.
+    E_FTP_CMD_MDTM,             //  Return the last-modified time of a specified file.
+    E_FTP_CMD_TYPE,             //  Sets the transfer mode (ASCII/Binary).
+    E_FTP_CMD_USER,             //  Authentication username.
+    E_FTP_CMD_PASS,             //  Authentication password.
+    E_FTP_CMD_PASV,             //  Enter passive mode.
+    E_FTP_CMD_LIST,             //  Returns information of a file or directory if specified,
+                                //else information of the current working directory is returned.
+    E_FTP_CMD_RETR,             //  Retrieve a copy of the file.
+    E_FTP_CMD_STOR,             //  Accept the data and to store the data as a file at the server site.
+    E_FTP_CMD_DELE,             //  Delete file.
+    E_FTP_CMD_RMD,              //  Remove a directory.
+    E_FTP_CMD_MKD,              //  Make directory.
+    E_FTP_CMD_RNFR,             //  Rename from.
+    E_FTP_CMD_RNTO,             //  Rename to.
+    E_FTP_CMD_NOOP,             //  No operation (dummy packet; used mostly on keepalives).
+    E_FTP_CMD_QUIT,             //  Disconnect.
+    E_FTP_CMD_APPE,             //  Append (with create).
+    E_FTP_CMD_NLST,             //  Returns a list of file names in a specified directory.
+    E_FTP_CMD_AUTH,             //  Authentication/Security Mechanism.
     E_FTP_NUM_FTP_CMDS
 } ftp_cmd_index_t;
 
