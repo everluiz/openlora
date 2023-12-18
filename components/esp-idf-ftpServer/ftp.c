@@ -332,12 +332,14 @@ static bool ftp_create_listening_socket (uint8_t c_src_port, uint8_t c_dst_port,
     ftp_data.c_sd.protocol = TRANSP_STREAM;
     ftp_data.c_sd.src_port = c_src_port;
 	ftp_data.c_sd.dst_port = c_dst_port;
+	ftp_data.c_sd.dst_addr = 1;
     int ret = ol_transp_open(&ftp_data.c_sd);
 
 	// open a openlora server for ftp data
     ftp_data.d_sd.protocol = TRANSP_STREAM;
     ftp_data.d_sd.src_port = d_src_port;
 	ftp_data.d_sd.dst_port = d_dst_port;
+	ftp_data.d_sd.dst_addr = 1;
     int ret2 = ol_transp_open(&ftp_data.d_sd);
     if (ret == pdFAIL && ret2 == pdFAIL) {
 		ESP_LOGI(TAG, "It was not possible to listen the %d port", ftp_data.c_sd.src_port);
@@ -543,7 +545,7 @@ static ftp_result_t ftp_recv_non_blocking (transport_layer_t sd, void *buff, int
 	if (sd.transp_wakeup == NULL) return E_FTP_RESULT_FAILED;
 
 	//*rxLen = recv(sd, buff, Maxlen, 0); // todo: replace socket recv() for openlora ol_transp_recv()
-	*rxLen = ol_transp_recv(&sd, (uint8_t *)buff, 0);
+	*rxLen = ol_transp_recv(&sd, (uint8_t *)buff, 500); //portMAX_DELAY
 	if (*rxLen > 0) return E_FTP_RESULT_OK;
 	else if (errno != EAGAIN) return E_FTP_RESULT_FAILED;
 
@@ -1080,7 +1082,7 @@ static void ftp_process_cmd (void) {
 		}
 	}
 	else {
-		ftp_close_cmd_data();
+		//ftp_close_cmd_data(); //todo: func commented
 	}
 }
 
@@ -1162,7 +1164,6 @@ int ftp_run (uint32_t elapsed)
 			ftp_wait_for_enabled(); // todo: fcn lora ok
 			break;
 		case E_FTP_STE_START:
-			// static bool ftp_create_listening_socket (transport_layer_t *server, uint8_t src_port, uint8_t dst_port) 
 			if (ftp_create_listening_socket(FTP_CMD_PORT, FTP_CMD_CLIENTS_MAX - 1,
 			FTP_ACTIVE_DATA_PORT, FTP_DATA_CLIENTS_MAX - 1)) {// todo: verify src_port and dst_port
 				ftp_data.txRetries = 0;
@@ -1173,27 +1174,14 @@ int ftp_run (uint32_t elapsed)
 				strcpy (ftp_path, "/");
 				ESP_LOGI(FTP_TAG, "Connected.");
 				//ftp_send_reply (220, "Micropython FTP Server");
-				ftp_send_reply (220, "ESP32 FTP Server");
+				//ftp_send_reply (220, "ESP32 FTP Server");
 				
 				ftp_data.state = E_FTP_STE_READY;				
 			}
 			break;
 		case E_FTP_STE_READY:
-			/*if (ftp_data.c_sd < 0 && ftp_data.substate == E_FTP_STE_SUB_DISCONNECTED) {
-				//if (E_FTP_RESULT_OK == ftp_wait_for_connection(ftp_data.lc_sd, &ftp_data.c_sd, &ftp_data.ip_addr)) { //  wait for socket connection
-					ftp_data.txRetries = 0;
-					ftp_data.logginRetries = 0;
-					ftp_data.ctimeout = 0;
-					ftp_data.loggin.uservalid = false;
-					ftp_data.loggin.passvalid = false;
-					strcpy (ftp_path, "/");
-					ESP_LOGI(FTP_TAG, "Connected.");
-					//ftp_send_reply (220, "Micropython FTP Server");
-					ftp_send_reply (220, "ESP32 FTP Server");
-					break;
-				//}
-			}*/
-			if (/*ftp_data.c_sd > 0 &&*/ ftp_data.substate != E_FTP_STE_SUB_LISTEN_FOR_DATA) {
+
+			if (ftp_data.substate != E_FTP_STE_SUB_LISTEN_FOR_DATA) {
 				ftp_process_cmd();
 				if (ftp_data.state != E_FTP_STE_READY) {
 					break;

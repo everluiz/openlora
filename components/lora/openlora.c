@@ -378,7 +378,7 @@ void ol_link_layer_task(void *arg) {
             // Transmitt a frame
             net_if_buffer_descriptor_t *frame;
             BaseType_t space = uxQueueSpacesAvailable(tx_link_layer_queue);
-            ESP_LOGI(TAG, "Available space in the link layer RX queue: %d", space);
+            ESP_LOGI(TAG, "Available space in the link layer TX queue: %d", space);
             if (space == 0){
                 is_queue_full = true;
             }

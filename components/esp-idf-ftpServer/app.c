@@ -56,7 +56,7 @@ int FTP_TASK_FINISH_BIT = BIT2;
 
 
 #if CONFIG_SPI_SDCARD || CONFIG_MMC_SDCARD
-esp_err_t mountSDCARD(char * mount_point, sdmmc_card_t * card){
+esp_err_t mountSDCARD(char * mount_point, sdmmc_card_t * card) {
 	ESP_LOGI(TAG, "Initializing SDCARD file system");
 	esp_err_t ret;
 	// Options for mounting the filesystem.
@@ -67,6 +67,53 @@ esp_err_t mountSDCARD(char * mount_point, sdmmc_card_t * card){
 		.max_files = 4, // maximum number of files which can be open at the same time
 		.allocation_unit_size = 16 * 1024
 	};
+	//sdmmc_card_t* card;
+
+#if CONFIG_MMC_SDCARD
+	// Use settings defined above to initialize SD card and mount FAT filesystem.
+	// Note: esp_vfs_fat_sdmmc/sdspi_mount is all-in-one convenience functions.
+	// Please check its source code and implement error recovery when developing
+	// production applications.
+
+	ESP_LOGI(TAG, "Using SDMMC peripheral");
+	sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+
+	// This initializes the slot without card detect (CD) and write protect (WP) signals.
+	// Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
+	sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+
+	// Set bus width to use:
+#ifdef CONFIG_SDMMC_BUS_WIDTH_4
+	ESP_LOGI(TAG, "SDMMC 4 line mode");
+	slot_config.width = 4;
+#else
+	ESP_LOGI(TAG, "SDMMC 1 line mode");
+	slot_config.width = 1;
+#endif
+
+	// On chips where the GPIOs used for SD card can be configured, set them in
+	// the slot_config structure:
+#ifdef SOC_SDMMC_USE_GPIO_MATRIX
+	ESP_LOGI(TAG, "SOC_SDMMC_USE_GPIO_MATRIX");
+	slot_config.clk = CONFIG_SDMMC_CLK; //GPIO_NUM_36;
+	slot_config.cmd = CONFIG_SDMMC_CMD; //GPIO_NUM_35;
+	slot_config.d0 = CONFIG_SDMMC_D0; //GPIO_NUM_37;
+#ifdef CONFIG_SDMMC_BUS_WIDTH_4
+	slot_config.d1 = CONFIG_SDMMC_D1; //GPIO_NUM_38;
+	slot_config.d2 = CONFIG_SDMMC_D2; //GPIO_NUM_33;
+	slot_config.d3 = CONFIG_SDMMC_D3; //GPIO_NUM_34;
+#endif // CONFIG_SDMMC_BUS_WIDTH_4
+#endif // SOC_SDMMC_USE_GPIO_MATRIX
+
+	// Enable internal pullups on enabled pins. The internal pullups
+	// are insufficient however, please make sure 10k external pullups are
+	// connected on the bus. This is for debug / example purpose only.
+	slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+
+	ESP_LOGI(TAG, "Mounting filesystem");
+	ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &card);
+
+#else
 	// Use settings defined above to initialize SD card and mount FAT filesystem.
 	// Note: esp_vfs_fat_sdmmc/sdspi_mount is all-in-one convenience functions.
 	// Please check its source code and implement error recovery when developing
@@ -99,6 +146,7 @@ esp_err_t mountSDCARD(char * mount_point, sdmmc_card_t * card){
 
 	ret = esp_vfs_fat_sdspi_mount(mount_point, &host, &slot_config, &mount_config, &card);
 	ESP_LOGI(TAG, "esp_vfs_fat_sdspi_mount=%d", ret);
+#endif // CONFIG_MMC_SDCARD
 
 	if (ret != ESP_OK) {
 		if (ret == ESP_FAIL) {
@@ -108,15 +156,18 @@ esp_err_t mountSDCARD(char * mount_point, sdmmc_card_t * card){
 			ESP_LOGE(TAG, "Failed to initialize the card (%s). "
 				"Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
 		}
+#if CONFIG_MMC_SDCARD
+		ESP_LOGI(TAG, "Try setting the 1-line SD/MMC mode and lower the SD/MMC card speed.");
+#endif // CONFIG_MMC_SDCARD
 		return ret;
 	}
 
 	// Card has been initialized, print its properties
 	sdmmc_card_print_info(stdout, card);
-	ESP_LOGI(TAG, "Mounte SD card on %s", mount_point);
+	ESP_LOGI(TAG, "Mounted SD card on %s", mount_point);
 	return ret;
 }
-#endif 
+#endif // CONFIG_SPI_SDCARD || CONFIG_MMC_SDCARD 
 
 void ftp_task (void *pvParameters);
 

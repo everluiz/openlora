@@ -33,10 +33,11 @@
 #include "driver/uart.h"
 #include "string.h"
 #include "app.h"
+#include "Client_app.h"
 
 #define TRANSMITTER 1
 #define RECEIVER    2
-#define MODE RECEIVER
+#define MODE TRANSMITTER
 
 
 #define BOARD_V1        1
@@ -44,7 +45,7 @@
 #define BOARD_V2_16     3
 #define BOARD_TTGO_BEAM 4
 
-#define BOARD   BOARD_V1
+#define BOARD   BOARD_V2
 
 
 #define PRINT_DEBUG 0
@@ -318,13 +319,15 @@ void app_main()
         // init openlora stack
         #if MODE == RECEIVER
         if (ol_init(1, OL_BORDER_ROUTER_ADDR) == pdTRUE){
-            xTaskCreate(lora_receive_task, "task_lora_tx", 3072, NULL, 4, NULL);
-            xTaskCreate(lora_receive_task_2, "task_lora_tx", 2048, NULL, 4, NULL);
-            xTaskCreate(lora_receive_task_3, "task_lora_tx", 2048, NULL, 4, NULL);
+            //xTaskCreate(lora_receive_task, "task_lora_tx", 3072, NULL, 4, NULL);
+            //xTaskCreate(lora_receive_task_2, "task_lora_tx", 2048, NULL, 4, NULL);
+            //xTaskCreate(lora_receive_task_3, "task_lora_tx", 2048, NULL, 4, NULL);
+            ftp_app_main();
         }
         #else
         if (ol_init(1, 1) == pdTRUE) {
-            xTaskCreate(lora_transmit_task, "task_lora_tx", 2048, NULL, 2, NULL);
+            //xTaskCreate(lora_transmit_task, "task_lora_tx", 2048, NULL, 2, NULL);
+            client_ftp_main();
         }
         #endif
    }
@@ -337,7 +340,7 @@ void app_main()
    // Tarefa cartão SD
    //xTaskCreate(&task_sdcard, "task_sdcard", 10*1024, NULL, 3, NULL);
    //xTaskCreate(&task_tasklist, "Task List", 4096, NULL,2,NULL);
-    ftp_app_main();
+    
 }
 
 
