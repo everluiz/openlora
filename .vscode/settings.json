@@ -12,7 +12,11 @@
         "initializer_list": "c",
         "regex": "c",
         "utility": "c",
-        "app.h": "c"
+        "app.h": "c",
+        "filetransfer.h": "c",
+        "string.h": "c",
+        "stat.h": "c",
+        "openlora.h": "c"
     },
     "idf.port": "/dev/ttyACM0",
     "idf.flashType": "UART"

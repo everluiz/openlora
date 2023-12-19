@@ -79,7 +79,7 @@ char ftp_pass[FTP_USER_PASS_LEN_MAX + 1];
  ******************************************************************************/
 static ftp_data_t ftp_data = {0};
 static char *ftp_path = NULL;
-static char *ftp_scratch_buffer = NULL;;
+static char *ftp_scratch_buffer = NULL;
 static char *ftp_cmd_buffer = NULL;
 static uint8_t ftp_nlist = 0;
 static const ftp_cmd_t ftp_cmd_table[] = { { "FEAT" }, { "SYST" }, { "CDUP" }, { "CWD"	},

@@ -15,7 +15,7 @@
 #include "esp_system.h"
 #include "esp_flash.h"
 #include "lora.h"
-#include "openlora.h"
+//#include "openlora.h"
 
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
@@ -32,8 +32,7 @@
 
 #include "driver/uart.h"
 #include "string.h"
-#include "app.h"
-#include "Client_app.h"
+#include "filetransfer.h"
 
 #define TRANSMITTER 1
 #define RECEIVER    2
@@ -322,12 +321,12 @@ void app_main()
             //xTaskCreate(lora_receive_task, "task_lora_tx", 3072, NULL, 4, NULL);
             //xTaskCreate(lora_receive_task_2, "task_lora_tx", 2048, NULL, 4, NULL);
             //xTaskCreate(lora_receive_task_3, "task_lora_tx", 2048, NULL, 4, NULL);
-            ftp_app_main();
+            
         }
         #else
         if (ol_init(1, 1) == pdTRUE) {
             //xTaskCreate(lora_transmit_task, "task_lora_tx", 2048, NULL, 2, NULL);
-            client_ftp_main();
+            filetransfer("/filetest.txt"); //"/rfc8180.txt"
         }
         #endif
    }
