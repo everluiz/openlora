@@ -149,6 +149,7 @@ const char *file;
 void lora_transmit_task(void *param) {
     (void)param;
     static const char *TAG = "lora_tx";
+    ESP_LOGI(TAG, "lora_transmit_task.");
     uint16_t cnt = 0;
     char buffer[16];
     transport_layer_t client;
@@ -325,8 +326,9 @@ void app_main()
         }
         #else
         if (ol_init(1, 1) == pdTRUE) {
+            //
+            filetransfer("/rfc8180.txt"); /*    "/rfc8180.txt"  "/filetest.txt"     */
             //xTaskCreate(lora_transmit_task, "task_lora_tx", 2048, NULL, 2, NULL);
-            filetransfer("/filetest.txt"); //"/rfc8180.txt"
         }
         #endif
    }

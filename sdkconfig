@@ -409,6 +409,26 @@ CONFIG_LOCAL_TIMEZONE=0
 # end of FTP Server Configuration
 
 #
+# FTP Server Configuration
+#
+
+#
+# File System Selection
+#
+# end of File System Selection
+
+#
+# WiFi Setting
+#
+# end of WiFi Setting
+
+#
+# FTP Server Setting
+#
+# end of FTP Server Setting
+# end of FTP Server Configuration
+
+#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEFAULT=y

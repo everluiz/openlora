@@ -8,10 +8,12 @@
 #include "freertos/queue.h"
 #include "openlora.h"
 
-#define OL_FILETRANSFER_MAX_PAYLOAD_SIZE    216 //excludes the header and trailer
+#define OL_FILETRANSFER_SIZE    216
+#define OL_FILETRANSFER_MAX_PAYLOAD_SIZE    (OL_FILETRANSFER_SIZE - sizeof(file_T_header_t)- sizeof(file_T_trailer_t))
 #define FILE_TRANSFER__PORT                 21
 
 typedef struct {
+    char                filename[128];// filename
     uint8_t             *buffer;    // data buffer
     FILE                *fp;        // file pointer
     transport_layer_t   client;     //  transport layer handler
@@ -19,8 +21,8 @@ typedef struct {
 
 typedef struct __attribute__((packed)) {
     uint8_t             file_id;
-    uint8_t             seq_number;
-    uint8_t             payload_size;
+    //uint8_t             payload_size;
+    uint16_t            seq_number;
 }file_T_header_t;
 
 typedef struct __attribute__((packed)) {
@@ -33,6 +35,6 @@ typedef enum {
     FILE_RESULT_FAILED
 } file_T_result_t;
 
-void filetransfer();
+BaseType_t filetransfer();
 
 #endif /* _FILETRANSFER_H_ */
