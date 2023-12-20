@@ -104,7 +104,6 @@ static bool open_file (const char *path, const char *mode) {
 	char fullname[128];
 	strcpy(fullname, MOUNT_POINT);
 	strcat(fullname, path);
-	strcat(file_data.filename, path);
 	ESP_LOGI(TAG, "open_file: fullname=[%s]", fullname);
 	file_data.fp = fopen(fullname, mode);
 	if (file_data.fp == NULL) {
@@ -136,35 +135,6 @@ static int write_file (char *filebuf, uint32_t size) {
 	return result;
 }
 
-//-----------------------------------------------
-static void send_file_data(uint32_t datasize)
-{
-	int result;
-	uint32_t timeout = 200;
-
-	ESP_LOGI(TAG, "Send file data: (%"PRIu32")", datasize);
-
-	while (1) {
-		
-		result = ol_transp_send(&file_data.client, file_data.buffer, datasize, 0);//todo: delay
-		if (result == datasize) {
-			//vTaskDelay(1);
-			ESP_LOGI(TAG, "Send OK");
-			break;
-		}
-		else {
-			//vTaskDelay(1);
-			if (timeout <= 0){
-				// error
-				//_ftp_reset();
-				ESP_LOGW(TAG, "Error sending file data.");
-				break;
-			}
-		}
-		timeout -= portTICK_PERIOD_MS;
-	}
-}
-
 
 void filetransfer_task(void *pvParameters){
 	file_T_header_t header;
@@ -172,7 +142,7 @@ void filetransfer_task(void *pvParameters){
 	header.file_id = 1;
 	header.seq_number = 0;
 	trailer.sha = 1;
-	char buffer[OL_FILETRANSFER_MAX_PAYLOAD_SIZE];
+	char buffer[OL_FILETRANSFER_MAX_PAYLOAD_SIZE] = {0};
 	int readsize;
 	int result = FILE_RESULT_CONTINUE;
 
@@ -186,25 +156,31 @@ void filetransfer_task(void *pvParameters){
 	ESP_LOGI(TAG, "Size: %d - %s", strlen(buffer), payload+sizeof(file_T_header_t));
 	int sent = ol_transp_send(&file_data.client, payload, strlen(buffer)+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t), portMAX_DELAY);
 	header.seq_number = 1;
+	if(sent ==  strlen(buffer)+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t)){
 
+	}
 	while(result == FILE_RESULT_CONTINUE){
-		memset(buffer, "", sizeof(buffer));
+		memset(buffer, 0, OL_FILETRANSFER_MAX_PAYLOAD_SIZE);
 		result = read_file ((char *) &buffer, OL_FILETRANSFER_MAX_PAYLOAD_SIZE, (uint32_t*) &readsize);
 		if (result == FILE_RESULT_FAILED){
 			ESP_LOGI(TAG, "file size zero.");
-			// sinalizar que arquivo está vazio ou terminou de enviar
+			// sinalizar que terminou de enviar
+			payload = pvPortMalloc(sizeof(file_T_header_t) + sizeof(file_T_header_t));
+			memcpy(payload, &header, sizeof(file_T_header_t));
+			memcpy(payload+sizeof(file_T_header_t), &trailer, sizeof(file_T_trailer_t));
+			//ESP_LOGI(TAG, "Size: %d - %s", OL_FILETRANSFER_SIZE, payload+sizeof(file_T_header_t));
+			int sent = ol_transp_send(&file_data.client, payload, sizeof(file_T_header_t) + sizeof(file_T_header_t), portMAX_DELAY);
 		}else{
 			if (result == FILE_RESULT_CONTINUE){
 				trailer.sha = 1;
 				//ESP_LOGI(TAG, "Size: %d - %s", readsize, buffer);
 				// arquivo maior que 1 payload, continua enviando
 
-				//file_T_header.payload_size = OL_FILETRANSFER_SIZE;
 				payload = pvPortMalloc(OL_FILETRANSFER_SIZE);
 				memcpy(payload, &header, sizeof(file_T_header_t));
 				memcpy(payload+sizeof(file_T_header_t), &buffer, OL_FILETRANSFER_MAX_PAYLOAD_SIZE);
 				memcpy(payload+sizeof(file_T_header_t)+OL_FILETRANSFER_MAX_PAYLOAD_SIZE, &trailer, sizeof(file_T_trailer_t));
-				ESP_LOGI(TAG, "Size: %d - %s", OL_FILETRANSFER_SIZE, payload+sizeof(file_T_header_t));
+				//ESP_LOGI(TAG, "Size: %d - %s", OL_FILETRANSFER_SIZE, payload+sizeof(file_T_header_t));
 				int sent = ol_transp_send(&file_data.client, payload, OL_FILETRANSFER_SIZE, portMAX_DELAY);
 				if (sent == OL_FILETRANSFER_SIZE) {
 					header.seq_number++;
@@ -220,11 +196,11 @@ void filetransfer_task(void *pvParameters){
 				memcpy(payload, &header, sizeof(file_T_header_t));
 				memcpy(payload+sizeof(file_T_header_t), &buffer, readsize);
 				memcpy(payload+sizeof(file_T_header_t)+OL_FILETRANSFER_MAX_PAYLOAD_SIZE, &trailer, sizeof(file_T_trailer_t));
-
-				int sent = ol_transp_send(&file_data.client,(uint8_t*) buffer, readsize+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t), portMAX_DELAY);
+				ESP_LOGI(TAG, "Id test: %d ", header.file_id);
+				int sent = ol_transp_send(&file_data.client,(uint8_t*) payload, readsize+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t), portMAX_DELAY);
 				if (sent == readsize+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t)) {
 					// Envio terminado.
-					ESP_LOGI(TAG, "Size: %d - %s", sent, payload+sizeof(file_T_header_t));
+					//ESP_LOGI(TAG, "Size: %d - %s", sent, payload+sizeof(file_T_header_t));
 				}
 				
 			}
@@ -235,7 +211,7 @@ void filetransfer_task(void *pvParameters){
 }
 
 BaseType_t filetransfer(char * filepath){
-	BaseType_t result;
+	BaseType_t result = pdPASS;
 	file_data.client.protocol = TRANSP_STREAM;
 	file_data.client.src_port = OL_TRANSPORT_CLIENT_PORT_INIT+1;
 	file_data.client.dst_port = 1;
@@ -250,7 +226,7 @@ BaseType_t filetransfer(char * filepath){
 	ret = mountSDCARD(MOUNT_POINT, &card);
 	while(ret != ESP_OK) { }
 	#endif
-
+	strcat(file_data.filename, filepath);
 	if(open_file(filepath,"rb")){
 		xEventTask = xEventGroupCreate();
 		xTaskCreate(filetransfer_task, "filetransfer", 1024*6, NULL, 2, NULL);
@@ -262,12 +238,11 @@ BaseType_t filetransfer(char * filepath){
 		ESP_LOGE(TAG, "task finish");
 
 		fclose(file_data.fp);
-		file_data.fp = NULL;
-		result = pdPASS;	
+		file_data.fp = NULL;	
 	}else{
 		result = pdFAIL;
 	}
-
+	ol_transp_close(&file_data.client);
 	#if CONFIG_SPI_SDCARD
 	esp_vfs_fat_sdcard_unmount(MOUNT_POINT, &card);
 	ESP_LOGI(TAG, "SDCARD unmounted");
@@ -277,15 +252,59 @@ BaseType_t filetransfer(char * filepath){
 }
 
 
+void filereceive_task(void *pvParameters){
+
+	//file_T_trailer_t *trailer;
+	char *data;
+	char buffer[OL_FILETRANSFER_SIZE]  = {0};
+	while (1){
+		memset(buffer, 0, OL_FILETRANSFER_SIZE);
+		int readsize = ol_transp_recv(&file_data.client, (uint8_t *)buffer, portMAX_DELAY);
+		file_T_header_t *pheader = &buffer;
+		if(readsize > 0){
+			//ESP_LOGI(TAG, "Size: %d - %s", readsize, buffer);
+			data = &buffer[sizeof(file_T_header_t)];
+			//trailer = readsize - sizeof(file_T_trailer_t);
+			if(pheader->file_id == file_data.file_id){ //same file_id
+				//ESP_LOGI(TAG, "Id: %d", file_data.file_id);
+				if(readsize > (sizeof(file_T_header_t)+sizeof(file_T_trailer_t))){  //if has data
+					if(pheader->seq_number == file_data.seq_number){
+						ESP_LOGI(TAG, "seq_number: %d", file_data.seq_number);
+						if(readsize == OL_FILETRANSFER_SIZE){
+							// deveria calcular hash
+							file_data.seq_number++;
+							ESP_LOGI(TAG, "Size: %d - %s", readsize, data);
+							write_file((char *) data, readsize - sizeof(file_T_header_t)- sizeof(file_T_trailer_t));
+						}else{
+							//last data
+							ESP_LOGI(TAG, "Size: %d - %s", readsize, data);
+							write_file((char *) data, readsize - sizeof(file_T_header_t)- sizeof(file_T_trailer_t));
+							break;
+						}
+					}else{
+						break; // todo: implement a way to retain higher seq_number, ignore lower seq_number.
+					}
+				}else{
+					//end of file
+					break;
+				}
+			}
+		}else{
+			break;
+		}
+	}//while(readsize == OL_FILETRANSFER_SIZE); // last transfer is not at max size or it is zero.
+
+	xEventGroupSetBits(xEventTask, TASK_FINISH_BIT);
+	vTaskDelete(NULL);
+}
 
 
-
-BaseType_t filereceive(char * filepath){
-	BaseType_t result;
+BaseType_t filereceive(){
+	BaseType_t result = pdPASS;
 	file_data.client.protocol = TRANSP_STREAM;
-	file_data.client.src_port = OL_TRANSPORT_CLIENT_PORT_INIT+1;
-	file_data.client.dst_port = 1;
-    file_data.client.dst_addr = OL_BORDER_ROUTER_ADDR;
+	file_data.client.src_port = 1;
+	file_data.client.dst_port = OL_TRANSPORT_CLIENT_PORT_INIT+1;
+    //file_data.client.dst_addr = OL_BORDER_ROUTER_ADDR;
 	ol_transp_open(&file_data.client);
 
 	esp_err_t ret;
@@ -297,22 +316,38 @@ BaseType_t filereceive(char * filepath){
 	while(ret != ESP_OK) { }
 	#endif
 
-	if(open_file(filepath,"rb")){
-		xEventTask = xEventGroupCreate();
-		xTaskCreate(filetransfer_task, "filetransfer", 1024*6, NULL, 2, NULL);
-		xEventGroupWaitBits( xEventTask,
-		TASK_FINISH_BIT, /* The bits within the event group to wait for. */
-		pdTRUE, /* BIT_0 should be cleared before returning. */
-		pdFALSE, /* Don't wait for both bits, either bit will do. */
-		portMAX_DELAY);/* Wait forever. */
-		ESP_LOGE(TAG, "task finish");
+	char buffer[OL_FILETRANSFER_SIZE]  = {0};
+	int len = ol_transp_recv(&file_data.client, (uint8_t *)buffer, portMAX_DELAY);
 
-		fclose(file_data.fp);
-		file_data.fp = NULL;
-		result = pdPASS;	
-	}else{
-		result = pdFAIL;
+	file_T_header_t *pheader = &buffer;
+	if(pheader->seq_number == 0){ // filetransfer initialized
+		memcpy(&file_data.filename, (char *) pheader + sizeof(file_T_header_t), len -sizeof(file_T_header_t)-sizeof(file_T_trailer_t));
+		file_data.file_id = pheader->file_id;
+		file_data.seq_number = 1;
+		ESP_LOGI(TAG, "Size: %d - %s", len, file_data.filename);
+		ESP_LOGI(TAG, "id: %d", pheader->file_id);
+
+		file_data.filename[len -sizeof(file_T_header_t)-sizeof(file_T_trailer_t)] = '\0';
+		if(open_file((char *) &file_data.filename, "wb")){
+
+			xEventTask = xEventGroupCreate();
+			xTaskCreate(filereceive_task, "filereceive", 1024*6, NULL, 2, NULL);
+			xEventGroupWaitBits( xEventTask,
+			TASK_FINISH_BIT, /* The bits within the event group to wait for. */
+			pdTRUE, /* BIT_0 should be cleared before returning. */
+			pdFALSE, /* Don't wait for both bits, either bit will do. */
+			portMAX_DELAY);/* Wait forever. */
+			ESP_LOGE(TAG, "task finish");
+
+			fclose(file_data.fp);
+			file_data.fp = NULL;
+			
+		}else{
+			result = pdFAIL;
+		}
 	}
+	
+	ol_transp_close(&file_data.client);
 
 	#if CONFIG_SPI_SDCARD
 	esp_vfs_fat_sdcard_unmount(MOUNT_POINT, &card);

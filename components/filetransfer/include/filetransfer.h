@@ -13,10 +13,12 @@
 #define FILE_TRANSFER__PORT                 21
 
 typedef struct {
-    char                filename[128];// filename
-    uint8_t             *buffer;    // data buffer
-    FILE                *fp;        // file pointer
-    transport_layer_t   client;     //  transport layer handler
+    char                filename[128];  // filename
+    uint8_t             *buffer;        // data buffer
+    uint8_t             file_id;        // file identification
+    uint16_t            seq_number;     // sequence number
+    FILE                *fp;            // file pointer
+    transport_layer_t   client;         //  transport layer handler
 } file_T_data_t;
 
 typedef struct __attribute__((packed)) {
@@ -36,5 +38,6 @@ typedef enum {
 } file_T_result_t;
 
 BaseType_t filetransfer();
+BaseType_t filereceive();
 
 #endif /* _FILETRANSFER_H_ */

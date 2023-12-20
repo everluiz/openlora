@@ -322,6 +322,7 @@ void app_main()
             //xTaskCreate(lora_receive_task, "task_lora_tx", 3072, NULL, 4, NULL);
             //xTaskCreate(lora_receive_task_2, "task_lora_tx", 2048, NULL, 4, NULL);
             //xTaskCreate(lora_receive_task_3, "task_lora_tx", 2048, NULL, 4, NULL);
+            filereceive();
             
         }
         #else

@@ -17,7 +17,12 @@
         "string.h": "c",
         "stat.h": "c",
         "openlora.h": "c",
-        "sdkconfig.h": "c"
+        "sdkconfig.h": "c",
+        "deque": "c",
+        "list": "c",
+        "string": "c",
+        "vector": "c",
+        "iterator": "c"
     },
     "idf.port": "/dev/ttyACM0",
     "idf.flashType": "UART"
