@@ -37,7 +37,7 @@ typedef enum {
     FILE_RESULT_FAILED
 } file_T_result_t;
 
-BaseType_t filetransfer();
+BaseType_t filetransfer(char* filepath);
 BaseType_t filereceive();
 
 #endif /* _FILETRANSFER_H_ */
