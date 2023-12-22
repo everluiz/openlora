@@ -339,51 +339,16 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
-# FTP Client Configuration
-#
-
-#
-# File System Setting
-#
-CONFIG_GPIO_RANGE_MAX=33
-# CONFIG_SPIFFS is not set
-# CONFIG_FATFS is not set
-CONFIG_SPI_SDCARD=y
-# CONFIG_MMC_SDCARD is not set
-# CONFIG_SPI_FLASH is not set
-CONFIG_SPI_MOSI=23
-CONFIG_SPI_MISO=19
-CONFIG_SPI_CLK=18
-CONFIG_SPI_CS=5
-CONFIG_SPI_POWER=-1
-# end of File System Setting
-
-#
-# WiFi Setting
-#
-CONFIG_ESP_WIFI_SSID="myssid"
-CONFIG_ESP_WIFI_PASSWORD="mypassword"
-CONFIG_ESP_MAXIMUM_RETRY=5
-# end of WiFi Setting
-
-#
-# FTP Server Setting
-#
-CONFIG_FTP_SERVER="ftpserver.local"
-CONFIG_FTP_PORT=21
-CONFIG_FTP_USER="esp32"
-CONFIG_FTP_PASSWORD="esp32"
-# end of FTP Server Setting
-# end of FTP Client Configuration
-
-#
 # FTP Server Configuration
 #
 
 #
 # File System Selection
 #
+CONFIG_GPIO_RANGE_MAX=33
 # CONFIG_FLASH is not set
+CONFIG_SPI_SDCARD=y
+# CONFIG_MMC_SDCARD is not set
 CONFIG_SDSPI_MOSI=15
 CONFIG_SDSPI_MISO=02
 CONFIG_SDSPI_CLK=14
@@ -396,6 +361,9 @@ CONFIG_SDSPI_POWER=-1
 #
 CONFIG_ST_MODE=y
 # CONFIG_AP_MODE is not set
+CONFIG_ESP_WIFI_SSID="myssid"
+CONFIG_ESP_WIFI_PASSWORD="mypassword"
+CONFIG_ESP_MAXIMUM_RETRY=5
 CONFIG_MDNS_HOSTNAME="ftp-server"
 # CONFIG_STATIC_IP is not set
 CONFIG_NTP_SERVER="pool.ntp.org"
@@ -405,26 +373,8 @@ CONFIG_LOCAL_TIMEZONE=0
 #
 # FTP Server Setting
 #
-# end of FTP Server Setting
-# end of FTP Server Configuration
-
-#
-# FTP Server Configuration
-#
-
-#
-# File System Selection
-#
-# end of File System Selection
-
-#
-# WiFi Setting
-#
-# end of WiFi Setting
-
-#
-# FTP Server Setting
-#
+CONFIG_FTP_USER="esp32"
+CONFIG_FTP_PASSWORD="esp32"
 # end of FTP Server Setting
 # end of FTP Server Configuration
 

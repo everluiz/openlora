@@ -116,7 +116,7 @@ static bool open_file (const char *path, const char *mode) {
 //---------------------------------------------------------------------------------------------
 static file_T_result_t read_file (char *filebuf, uint32_t desiredsize, uint32_t *actualsize) {
 	file_T_result_t result = FILE_RESULT_CONTINUE;
-	*actualsize = fread(filebuf, 1, desiredsize, file_data.fp);
+	*actualsize = fread(filebuf, 1, desiredsize, file_data.fp); // todo:fsize()
 	if (*actualsize == 0) {
 		result = FILE_RESULT_FAILED;
 	} else if (*actualsize < desiredsize) {
@@ -149,7 +149,7 @@ void filetransfer_task(void *pvParameters){
 	// send first package with file_id and filename in the payload.
 	strcpy(buffer, file_data.filename);
 	// Allocate the payload size
-	uint8_t *payload = pvPortMalloc(strlen(buffer)+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t));
+	uint8_t *payload = pvPortMalloc(strlen(buffer)+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t)); 
 	memcpy(payload, &header, sizeof(file_T_header_t));
 	memcpy(payload+sizeof(file_T_header_t), &buffer, strlen(buffer));
 	memcpy(payload+sizeof(file_T_header_t)+strlen(buffer), &trailer, sizeof(file_T_trailer_t));
@@ -186,7 +186,7 @@ void filetransfer_task(void *pvParameters){
 					header.seq_number++;
 					// Envio realizado ,continua enviando
 					//ESP_LOGI(TAG, "enviando..");
-				}
+				}// tratar ex.
 				vTaskDelay(1);
 			}
 			if (result == FILE_RESULT_OK) {
