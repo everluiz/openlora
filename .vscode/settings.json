@@ -22,7 +22,8 @@
         "list": "c",
         "string": "c",
         "vector": "c",
-        "iterator": "c"
+        "iterator": "c",
+        "iosfwd": "c"
     },
     "idf.port": "/dev/ttyACM0",
     "idf.flashType": "UART"

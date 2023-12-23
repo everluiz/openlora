@@ -114,9 +114,19 @@ static bool open_file (const char *path, const char *mode) {
 }
 
 //---------------------------------------------------------------------------------------------
+/* seek back to the beginning of file*/
+static int file_size () {
+	int size = 0;
+	fseek(file_data.fp, 0, SEEK_END);	//seek to end of file
+	size = ftell(file_data.fp); 			//get current file pointer
+	fseek(file_data.fp, 0, SEEK_SET);	//set seek to beginning of file
+	return size;
+}
+
+//---------------------------------------------------------------------------------------------
 static file_T_result_t read_file (char *filebuf, uint32_t desiredsize, uint32_t *actualsize) {
 	file_T_result_t result = FILE_RESULT_CONTINUE;
-	*actualsize = fread(filebuf, 1, desiredsize, file_data.fp); // todo:fsize()
+	*actualsize = fread(filebuf, 1, desiredsize, file_data.fp);
 	if (*actualsize == 0) {
 		result = FILE_RESULT_FAILED;
 	} else if (*actualsize < desiredsize) {
@@ -142,70 +152,61 @@ void filetransfer_task(void *pvParameters){
 	header.file_id = 1;
 	header.seq_number = 0;
 	trailer.sha = 1;
-	char buffer[OL_FILETRANSFER_MAX_PAYLOAD_SIZE] = {0};
-	int readsize;
-	int result = FILE_RESULT_CONTINUE;
+	uint8_t buffer[OL_FILETRANSFER_SIZE] = {0};
+	header.file_size = file_data.file_size;
+	int bytesLeft = file_data.file_size;
+	ESP_LOGI(TAG, "bytesLeft: %d ", bytesLeft);
+	int bytes2send;
 
-	// send first package with file_id and filename in the payload.
-	strcpy(buffer, file_data.filename);
-	// Allocate the payload size
-	uint8_t *payload = pvPortMalloc(strlen(buffer)+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t)); 
-	memcpy(payload, &header, sizeof(file_T_header_t));
-	memcpy(payload+sizeof(file_T_header_t), &buffer, strlen(buffer));
-	memcpy(payload+sizeof(file_T_header_t)+strlen(buffer), &trailer, sizeof(file_T_trailer_t));
-	ESP_LOGI(TAG, "Size: %d - %s", strlen(buffer), payload+sizeof(file_T_header_t));
-	int sent = ol_transp_send(&file_data.client, payload, strlen(buffer)+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t), portMAX_DELAY);
+	// send first package with seq_number=zero, file_id, file_size and filename in the payload.
+	uint8_t pldLength = strlen(file_data.filename) + sizeof(file_T_header_t) + sizeof(file_T_trailer_t);
+	memcpy(buffer,(uint8_t*) &header, sizeof(file_T_header_t));
+	memcpy(buffer+sizeof(file_T_header_t),(uint8_t*) &file_data.filename, strlen(file_data.filename));
+	memcpy(buffer+sizeof(file_T_header_t)+strlen(file_data.filename),(uint8_t*) &trailer, sizeof(file_T_trailer_t));
+	ESP_LOGI(TAG, "Size: %d - %s", strlen(file_data.filename), buffer+sizeof(file_T_header_t));
+	int sent = ol_transp_send(&file_data.client, &buffer, pldLength, portMAX_DELAY);
 	header.seq_number = 1;
-	if(sent ==  strlen(buffer)+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t)){
 
-	}
-	while(result == FILE_RESULT_CONTINUE){
-		memset(buffer, 0, OL_FILETRANSFER_MAX_PAYLOAD_SIZE);
-		result = read_file ((char *) &buffer, OL_FILETRANSFER_MAX_PAYLOAD_SIZE, (uint32_t*) &readsize);
-		if (result == FILE_RESULT_FAILED){
-			ESP_LOGI(TAG, "file size zero.");
-			// sinalizar que terminou de enviar
-			payload = pvPortMalloc(sizeof(file_T_header_t) + sizeof(file_T_header_t));
-			memcpy(payload, &header, sizeof(file_T_header_t));
-			memcpy(payload+sizeof(file_T_header_t), &trailer, sizeof(file_T_trailer_t));
-			//ESP_LOGI(TAG, "Size: %d - %s", OL_FILETRANSFER_SIZE, payload+sizeof(file_T_header_t));
-			int sent = ol_transp_send(&file_data.client, payload, sizeof(file_T_header_t) + sizeof(file_T_header_t), portMAX_DELAY);
-		}else{
-			if (result == FILE_RESULT_CONTINUE){
-				trailer.sha = 1;
-				//ESP_LOGI(TAG, "Size: %d - %s", readsize, buffer);
-				// arquivo maior que 1 payload, continua enviando
+	if(sent == pldLength){
+		do
+		{
+			memset(buffer, 0, OL_FILETRANSFER_SIZE); // clear buffer
+			if(bytesLeft >= OL_FILETRANSFER_MAX_PAYLOAD_SIZE){
+				bytes2send = OL_FILETRANSFER_MAX_PAYLOAD_SIZE;
+			}else{
+				bytes2send = bytesLeft;
+			}
 
-				payload = pvPortMalloc(OL_FILETRANSFER_SIZE);
-				memcpy(payload, &header, sizeof(file_T_header_t));
-				memcpy(payload+sizeof(file_T_header_t), &buffer, OL_FILETRANSFER_MAX_PAYLOAD_SIZE);
-				memcpy(payload+sizeof(file_T_header_t)+OL_FILETRANSFER_MAX_PAYLOAD_SIZE, &trailer, sizeof(file_T_trailer_t));
+			uint8_t readsize = fread((char *) &buffer+sizeof(file_T_header_t), 1, bytes2send, file_data.fp);
+			if(readsize == bytes2send){
+				memcpy(buffer,(uint8_t*) &header, sizeof(file_T_header_t));
+				memcpy(buffer+sizeof(file_T_header_t)+bytes2send,(uint8_t*) &trailer, sizeof(file_T_trailer_t));
 				//ESP_LOGI(TAG, "Size: %d - %s", OL_FILETRANSFER_SIZE, payload+sizeof(file_T_header_t));
-				int sent = ol_transp_send(&file_data.client, payload, OL_FILETRANSFER_SIZE, portMAX_DELAY);
-				if (sent == OL_FILETRANSFER_SIZE) {
+				//ESP_LOGI(TAG, "teste: %d", buffer+sizeof(file_T_header_t));
+				int sent = ol_transp_send(&file_data.client, &buffer, bytes2send+sizeof(file_T_header_t)+sizeof(file_T_trailer_t), portMAX_DELAY);
+				if (sent == bytes2send+sizeof(file_T_header_t)+sizeof(file_T_trailer_t)) {
 					header.seq_number++;
+					bytesLeft -= OL_FILETRANSFER_MAX_PAYLOAD_SIZE;
+					ESP_LOGI(TAG, "bytesLeft: %d ", bytesLeft);
 					// Envio realizado ,continua enviando
 					//ESP_LOGI(TAG, "enviando..");
-				}// tratar ex.
-				vTaskDelay(1);
-			}
-			if (result == FILE_RESULT_OK) {
-				trailer.sha = 1;
-
-				payload = pvPortMalloc(readsize+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t));
-				memcpy(payload, &header, sizeof(file_T_header_t));
-				memcpy(payload+sizeof(file_T_header_t), &buffer, readsize);
-				memcpy(payload+sizeof(file_T_header_t)+OL_FILETRANSFER_MAX_PAYLOAD_SIZE, &trailer, sizeof(file_T_trailer_t));
-				ESP_LOGI(TAG, "Id test: %d ", header.file_id);
-				int sent = ol_transp_send(&file_data.client,(uint8_t*) payload, readsize+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t), portMAX_DELAY);
-				if (sent == readsize+ sizeof(file_T_header_t)+ sizeof(file_T_trailer_t)) {
-					// Envio terminado.
-					//ESP_LOGI(TAG, "Size: %d - %s", sent, payload+sizeof(file_T_header_t));
+				}else{
+					ESP_LOGI(TAG, "error: transport size not expected.");
+					break;
 				}
-				
+			}else{
+				ESP_LOGI(TAG, "error: read file size not expected.");
+				break;
 			}
-		}
+		} while (bytesLeft > 0);
+
+		// send last package with SHA.
+		memset(buffer, 0, OL_FILETRANSFER_SIZE); // clear buffer
+		memcpy(buffer,(uint8_t*) &header, sizeof(file_T_header_t));
+		memcpy(buffer+sizeof(file_T_header_t),(uint8_t*) &trailer, sizeof(file_T_trailer_t));
+		ol_transp_send(&file_data.client, &buffer, sizeof(file_T_header_t)+sizeof(file_T_trailer_t), portMAX_DELAY);
 	}
+
 	xEventGroupSetBits(xEventTask, TASK_FINISH_BIT);
 	vTaskDelete(NULL);
 }
@@ -228,14 +229,19 @@ BaseType_t filetransfer(char * filepath){
 	#endif
 	strcat(file_data.filename, filepath);
 	if(open_file(filepath,"rb")){
-		xEventTask = xEventGroupCreate();
-		xTaskCreate(filetransfer_task, "filetransfer", 1024*6, NULL, 2, NULL);
-		xEventGroupWaitBits( xEventTask,
-		TASK_FINISH_BIT, /* The bits within the event group to wait for. */
-		pdTRUE, /* BIT_0 should be cleared before returning. */
-		pdFALSE, /* Don't wait for both bits, either bit will do. */
-		portMAX_DELAY);/* Wait forever. */
-		ESP_LOGE(TAG, "task finish");
+		
+		if( (file_data.file_size = file_size()) ){
+			xEventTask = xEventGroupCreate();
+			xTaskCreate(filetransfer_task, "filetransfer", 1024*6, NULL, 2, NULL);
+			xEventGroupWaitBits( xEventTask,
+			TASK_FINISH_BIT, /* The bits within the event group to wait for. */
+			pdTRUE, /* BIT_0 should be cleared before returning. */
+			pdFALSE, /* Don't wait for both bits, either bit will do. */
+			portMAX_DELAY);/* Wait forever. */
+			ESP_LOGE(TAG, "task finish");
+		}else{
+			ESP_LOGE(TAG, "file size zero.");
+		}
 
 		fclose(file_data.fp);
 		file_data.fp = NULL;	

@@ -328,7 +328,7 @@ void app_main()
         #else
         if (ol_init(1, 1) == pdTRUE) {
             //
-            filetransfer("/rfc8180.txt"); /* "/rfc8180.txt" "/filetest.txt"  "/teste.txt" "/helloworld.bin"  */
+            filetransfer("/teste.txt"); /* "/rfc8180.txt" "/filetest.txt"  "/teste.txt" "/helloworld.bin"  */
             //xTaskCreate(lora_transmit_task, "task_lora_tx", 2048, NULL, 2, NULL);
         }
         #endif

@@ -14,8 +14,8 @@
 
 typedef struct {
     char                filename[128];  // filename
-    uint8_t             *buffer;        // data buffer
     uint8_t             file_id;        // file identification
+    uint16_t            file_size;      // file size in bytes
     uint16_t            seq_number;     // sequence number
     FILE                *fp;            // file pointer
     transport_layer_t   client;         //  transport layer handler
@@ -23,7 +23,7 @@ typedef struct {
 
 typedef struct __attribute__((packed)) {
     uint8_t             file_id;
-    //uint8_t             payload_size;
+    uint8_t             file_size;
     uint16_t            seq_number;
 }file_T_header_t;
 
