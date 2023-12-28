@@ -133,7 +133,7 @@ static int write_file (char *filebuf, uint32_t size) {
 	return result;
 }
 
-
+/*
 void filetransfer_task(void *pvParameters){
 	file_T_header_t header;
 	header.file_id = 1;
@@ -193,7 +193,7 @@ void filetransfer_task(void *pvParameters){
 	xEventGroupSetBits(xEventTask, TASK_FINISH_BIT);
 	vTaskDelete(NULL);
 }
-
+*/
 BaseType_t filetransfer(char * filepath){
 	BaseType_t result = pdPASS;
 	file_data.client.protocol = TRANSP_STREAM;
@@ -214,14 +214,60 @@ BaseType_t filetransfer(char * filepath){
 	if(open_file(filepath,"rb")){
 		
 		if( (file_data.file_size = file_size()) ){
-			xEventTask = xEventGroupCreate();
-			xTaskCreate(filetransfer_task, "filetransfer", 1024*6, NULL, 2, NULL);
-			xEventGroupWaitBits( xEventTask,
-			TASK_FINISH_BIT, /* The bits within the event group to wait for. */
-			pdTRUE, /* BIT_0 should be cleared before returning. */
-			pdFALSE, /* Don't wait for both bits, either bit will do. */
-			portMAX_DELAY);/* Wait forever. */
-			ESP_LOGE(TAG, "task finish");
+			file_T_header_t header;
+			header.file_id = 1;
+			header.seq_number = 0;
+			uint8_t buffer[OL_FILETRANSFER_SIZE] = {0};
+			header.file_size = file_data.file_size;
+			int bytesLeft = file_data.file_size;
+			ESP_LOGI(TAG, "bytesLeft: %d ", bytesLeft);
+			ESP_LOGI(TAG, "filesizetest: %d ", header.file_size);
+			int bytes2send;
+
+			// send first package with seq_number=zero, file_id, file_size and filename in the payload.
+			uint8_t pldLength = strlen(file_data.filename) + sizeof(file_T_header_t);
+			memcpy(buffer,(uint8_t*) &header, sizeof(file_T_header_t));
+			memcpy(buffer+sizeof(file_T_header_t),(uint8_t*) &file_data.filename, strlen(file_data.filename));
+			ESP_LOGI(TAG, "Size: %d - %s", strlen(file_data.filename), buffer+sizeof(file_T_header_t));
+			int sent = ol_transp_send(&file_data.client, &buffer, pldLength, portMAX_DELAY);
+			header.seq_number = 1;
+
+			if(sent == pldLength){
+				do
+				{
+					memset(buffer, 0, OL_FILETRANSFER_SIZE); // clear buffer
+					if(bytesLeft >= OL_FILETRANSFER_MAX_PAYLOAD_SIZE){
+						bytes2send = OL_FILETRANSFER_MAX_PAYLOAD_SIZE;
+					}else{
+						bytes2send = bytesLeft;
+					}
+
+					uint8_t readsize = fread((char *) &buffer+sizeof(file_T_header_t), 1, bytes2send, file_data.fp);
+					if(readsize == bytes2send){
+						memcpy(buffer,(uint8_t*) &header, sizeof(file_T_header_t));
+
+						int sent = ol_transp_send(&file_data.client, &buffer, bytes2send+sizeof(file_T_header_t), 2000);
+						if (sent == bytes2send+sizeof(file_T_header_t)) {
+							header.seq_number++;
+							bytesLeft -= OL_FILETRANSFER_MAX_PAYLOAD_SIZE;
+							ESP_LOGI(TAG, "bytesLeft: %d ", bytesLeft);
+							// Envio realizado ,continua enviando
+							//ESP_LOGI(TAG, "enviando..");
+						}else{
+							ESP_LOGI(TAG, "error: transport size not expected.");
+							break;
+						}
+					}else{
+						ESP_LOGI(TAG, "error: read file size not expected.");
+						break;
+					}
+				} while (bytesLeft > 0);
+
+				// send last package with SHA.
+				memset(buffer, 0, OL_FILETRANSFER_SIZE); // clear buffer
+				memcpy(buffer,(uint8_t*) &header, sizeof(file_T_header_t));
+				ol_transp_send(&file_data.client, &buffer, sizeof(file_T_header_t), portMAX_DELAY); // todo: add sizeof(buffer) with sha number
+			}
 		}else{
 			ESP_LOGE(TAG, "file size zero.");
 		}
